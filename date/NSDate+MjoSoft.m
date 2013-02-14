@@ -8,17 +8,53 @@
 
 @implementation NSDate (MjoSoft)
 
+static NSMutableDictionary *_cacheFormatters = nil;
+static NSLock *_cacheFormattersLock = nil;
+
++ (void)load
+{
+  [super load];
+  
+  _cacheFormattersLock = [NSLock new];
+  [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(lowMemory:) name:UIApplicationDidReceiveMemoryWarningNotification object:nil];
+}
+
++ (void)lowMemory:(NSNotification*)notification
+{
+  [_cacheFormattersLock lock];
+  if (_cacheFormatters) {
+    [_cacheFormatters removeAllObjects];
+    _cacheFormatters = nil;
+  }
+  [_cacheFormattersLock unlock];
+}
+
++ (NSDateFormatter*)getDateFormatter:(NSString*)format
+{
+  [_cacheFormattersLock lock];
+  if (!_cacheFormatters) {
+    _cacheFormatters = [NSMutableDictionary dictionaryWithCapacity:1];
+  }
+  NSDateFormatter *dateFormat = _cacheFormatters[format];
+  if (!dateFormat) {
+    dateFormat = [[NSDateFormatter alloc] init];
+    [dateFormat setDateFormat: format];
+    _cacheFormatters[format] = dateFormat;
+    // Decomment this line if not using Automatic Reference Counting
+    //[dateFormat release];
+  }
+  [_cacheFormattersLock unlock];
+  return dateFormat;
+}
+
 // Returns a NSString representing the date with the specified format.
 - (NSString*)asStringWithFormat:(NSString*)format
 {
-  NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
-  [formatter setDateFormat: format];
-  NSString *str = [formatter stringFromDate: self];
-
-  // Decomment this line if not using Automatic Reference Counting
-  //[formatter release];
+  if (!format) {
+    return @"";
+  }
   
-  return str;
+  return [[NSDate getDateFormatter:format] stringFromDate: self];
 }
 
 // Returns the year part of the date.
